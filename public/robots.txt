@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /find-teammates
+Disallow: /hackathons
+Disallow: /my-posts
+Disallow: /my-team
+Disallow: /notifications
+Disallow: /settings
+Disallow: /admin
+Disallow: /admin/login
+Disallow: /onboarding
