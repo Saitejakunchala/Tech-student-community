@@ -151,8 +151,10 @@ export function Navbar() {
 
 export function PublicNav() {
   const { path, navigate } = useRouter();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  const isAdmin = profile?.role === 'admin';
 
   return (
     <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg border-b border-slate-200/80">
@@ -177,7 +179,9 @@ export function PublicNav() {
           </nav>
           <div className="flex items-center gap-2">
             {session ? (
-              <Button size="sm" onClick={() => navigate('/dashboard')}>Dashboard</Button>
+              <Button size="sm" onClick={() => navigate(isAdmin ? '/admin' : '/dashboard')}>
+                {isAdmin ? 'Admin Dashboard' : 'Dashboard'}
+              </Button>
             ) : (
               <>
                 <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>Log In</Button>
