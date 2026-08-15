@@ -34,72 +34,117 @@ export function DashboardPage() {
   const [recommendations, setRecommendations] = useState<TeamRequirement[]>([]);
   const [userSkills, setUserSkills] = useState<string[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
-    if (!profile) return;
+    if (loading) return;
+    if (!profile) {
+      setPageLoading(false);
+      return;
+    }
     loadData();
-  }, [profile]);
+  }, [profile, loading]);
 
   const loadData = async () => {
     if (!profile) return;
-    const [statsRes, activityRes, recsRes, skillsRes] = await Promise.all([
-      supabase
-        .from('hackathon_participations')
-        .select('result, verification_status')
-        .eq('user_id', profile.id)
-        .eq('verification_status', 'verified'),
-      supabase
-        .from('hackathon_participations')
-        .select('created_at')
-        .eq('user_id', profile.id)
-        .eq('verification_status', 'verified'),
-      supabase
-        .from('team_requirements')
-        .select('*, hackathon:hackathons(*), owner:profiles!team_requirements_owner_id_fkey(*)')
-        .eq('status', 'open')
-        .order('created_at', { ascending: false })
-        .limit(5),
-      supabase
-        .from('profile_skills')
-        .select('skill:skills(name)')
-        .eq('profile_id', profile.id),
-    ]);
+    setError(false);
+    setPageLoading(true);
+    try {
+      const [statsRes, activityRes, recsRes, skillsRes] = await Promise.all([
+        supabase
+          .from('hackathon_participations')
+          .select('result, verification_status')
+          .eq('user_id', profile.id)
+          .eq('verification_status', 'verified'),
+        supabase
+          .from('hackathon_participations')
+          .select('created_at')
+          .eq('user_id', profile.id)
+          .eq('verification_status', 'verified'),
+        supabase
+          .from('team_requirements')
+          .select('*, hackathon:hackathons(*), owner:profiles!team_requirements_owner_id_fkey(*)')
+          .eq('status', 'open')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        supabase
+          .from('profile_skills')
+          .select('skill:skills(name)')
+          .eq('profile_id', profile.id),
+      ]);
 
-    // Stats
-    const participations = statsRes.data || [];
-    setStats({
-      hackathonsParticipated: participations.length,
-      finalist: participations.filter((p) => p.result === 'finalist' || p.result === 'winner').length,
-      wins: participations.filter((p) => p.result === 'winner').length,
-      projects: 0,
-    });
+      // Stats
+      const participations = statsRes.data || [];
+      setStats({
+        hackathonsParticipated: participations.length,
+        finalist: participations.filter((p) => p.result === 'finalist' || p.result === 'winner').length,
+        wins: participations.filter((p) => p.result === 'winner').length,
+        projects: 0,
+      });
 
-    // Projects count
-    const { count: projectCount } = await supabase
-      .from('projects')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', profile.id);
-    setStats((s) => ({ ...s, projects: projectCount || 0 }));
+      // Projects count
+      const { count: projectCount } = await supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', profile.id);
+      setStats((s) => ({ ...s, projects: projectCount || 0 }));
 
-    // Activity
-    const activityMap = new Map<string, number>();
-    (activityRes.data || []).forEach((p) => {
-      const date = p.created_at.split('T')[0];
-      activityMap.set(date, (activityMap.get(date) || 0) + 1);
-    });
-    setActivity(Array.from(activityMap.entries()).map(([date, count]) => ({ date, count })));
+      // Activity
+      const activityMap = new Map<string, number>();
+      (activityRes.data || []).forEach((p) => {
+        const date = p.created_at.split('T')[0];
+        activityMap.set(date, (activityMap.get(date) || 0) + 1);
+      });
+      setActivity(Array.from(activityMap.entries()).map(([date, count]) => ({ date, count })));
 
-    // Recommendations
-    setRecommendations((recsRes.data || []) as TeamRequirement[]);
+      // Recommendations
+      setRecommendations((recsRes.data || []) as TeamRequirement[]);
 
-    // User skills
-    const skillNames = (skillsRes.data || []).map((s) => (s.skill as unknown as { name: string }).name);
-    setUserSkills(skillNames);
-
-    setPageLoading(false);
+      // User skills
+      const skillNames = (skillsRes.data || []).map((s) => (s.skill as unknown as { name: string }).name);
+      setUserSkills(skillNames);
+    } catch {
+      setError(true);
+    } finally {
+      setPageLoading(false);
+    }
   };
 
   if (loading || pageLoading) return <FullSpinner label="Loading your dashboard..." />;
+
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <div className="max-w-2xl mx-auto mt-20">
+          <Card>
+            <CardBody className="text-center py-12">
+              <h2 className="text-xl font-black text-slate-900 mb-2">Profile not found</h2>
+              <p className="text-slate-600 mb-6">We couldn't find your profile. Please complete onboarding to continue.</p>
+              <Button onClick={() => navigate('/onboarding')}>Complete Your Profile</Button>
+            </CardBody>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Navbar />
+        <div className="max-w-2xl mx-auto mt-20">
+          <Card>
+            <CardBody className="text-center py-12">
+              <h2 className="text-xl font-black text-slate-900 mb-2">Unable to load dashboard data</h2>
+              <p className="text-slate-600 mb-6">Something went wrong while loading your dashboard. Please try again.</p>
+              <Button onClick={loadData}>Retry</Button>
+            </CardBody>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const greeting = getGreeting();
   const firstName = profile?.full_name?.split(' ')[0] || 'there';
